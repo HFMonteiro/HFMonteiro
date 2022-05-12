@@ -2,4 +2,115 @@
 // estudo com programa de rastreio organizado
 // Hugo Monteiro 2022
 
+##install.packages("bupaR")
+##install.packages("eventdataR")
+##install.packages("xesreadR")
+##install.packages("edeaR")
+##install.packages("processmapR")
+##install.packages("processmonitR")
+##install.packages("tictoc")
+##install.packages("devtools")
+##install.packages("readxl")
+##install.packages("dplyr")
+##install.packages("tidyverse")
+##install.packages("plyr")
 
+##devtools::install_github("gertjanssenswillen/<package>")
+
+## time to process
+tic()
+
+########### Intro Start ############
+
+library(bupaR)
+library(eventdataR)
+library(xesreadR)
+library(edeaR)
+library(processmapR)
+library(processmonitR)
+library(tictoc)
+library(devtools)
+library(readxl)
+#library(dplyr)
+library(plyr)
+library(tidyverse)
+
+
+##devtools::install_github("gertjanssenswillen/<package>")
+
+### Ficheiro de análise upload ####
+## getting the working directory
+#print ("Modified working directory")
+#getwd()
+#setwd("OneDrive - SPMS - Serviços Partilhados do Ministério da Saúde, EPE/DEP/Rastreios/RCCR")
+
+## get data
+
+#data <- read_xlsx("data_rccr_pm_1run.xlsx") ### ATENÇÃO MUDANÇAS DE NOME
+
+## view data
+
+View(data)
+print(data)
+
+## check data type
+
+str(data)
+
+## convert to data frame
+
+as.data.frame(data)
+
+## rename variables
+
+colnames(data)[colnames(data) == "N_Utente"] <- "case_id"
+colnames(data)[colnames(data) == "Datas"] <- "timestamp"
+colnames(data)[colnames(data) == "Dat atributo"] <- "activity_id"
+colnames(data)[colnames(data) == "ordem eventos"] <- "instance_id"
+
+
+############################ CREATE EVENTLOG ##########################
+
+## FULL EVENT LOG FUNCTION ##
+bupaR::eventlog(eventlog = data,
+                       case_id = "case_id",
+                       activity_id = "activity_id",
+                       timestamp = "timestamp"
+                        )
+
+
+dif <- bupaR::simple_eventlog(eventlog = data,
+                case_id = "case_id",
+                activity_id = "activity_id",
+                timestamp = "timestamp"
+                )
+
+### add butão bupaR::isimple_eventlog(eventlog = data)
+
+########## stats ############
+
+###### Exploratory and descriptive ####
+
+
+###### process visualization ######
+
+processmapR::process_map(dif) ### mapeamento
+
+processmapR::precedence_matrix(dif) ## sequências 1
+
+processmapR::trace_explorer(dif) ### sequências 2
+
+processmapR::dotted_chart(dif) ## takes time!
+
+processmapR::resource_map(dif) ### mapeamento 2
+
+##### Process dashboard ######
+
+processmonitR::activity_dashboard(dif)
+
+processmonitR::rework_dashboard(dif)
+
+performance_dashboard(dif)
+
+## end time to process
+toc()
