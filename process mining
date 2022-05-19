@@ -1,7 +1,3 @@
-// código para process mining em saúde
-// estudo com programa de rastreio organizado
-// Hugo Monteiro 2022
-
 ##install.packages("bupaR")
 ##install.packages("eventdataR")
 ##install.packages("xesreadR")
@@ -14,6 +10,23 @@
 ##install.packages("dplyr")
 ##install.packages("tidyverse")
 ##install.packages("plyr")
+install.packages("DiagrammeR")
+install.packages("processanimateR")
+
+c_necessary_packages <- c(
+  'bupaR',
+  'edeaR',
+  'processmapR',
+  'eventdataR',
+  'readr',
+  'tidyverse',
+  'DiagrammeR',
+  'ggplot2',
+  'stringr',
+  'lubridate'  
+)
+c_missing_packages <- c_necessary_packages[!(c_necessary_packages %in% installed.packages()[,"Package"])]
+if(length(c_missing_packages) > 0) install.packages(c_missing_packages)
 
 ##devtools::install_github("gertjanssenswillen/<package>")
 
@@ -23,20 +36,31 @@ tic()
 ########### Intro Start ############
 
 library(bupaR)
-library(eventdataR)
-library(xesreadR)
-library(edeaR)
-library(processmapR)
-library(processmonitR)
+#library(eventdataR)
+#library(xesreadR)
+#library(edeaR)
+#library(processmapR)
+#library(processmonitR)
 library(tictoc)
-library(devtools)
-library(readxl)
+#library(devtools)
+#library(readxl)
 #library(dplyr)
 library(plyr)
 library(tidyverse)
-
+library(eventdataR)
+library(readr)
+library(DiagrammeR)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(processanimateR)
 
 ##devtools::install_github("gertjanssenswillen/<package>")
+##devtools::install_github("gertjanssenswillen/processmapr") <- mais recente
+
+# use remotes to install the latest version of processanimateR
+remotes::install_github("bupaverse/processanimateR")
+
 
 ### Ficheiro de análise upload ####
 ## getting the working directory
@@ -46,12 +70,14 @@ library(tidyverse)
 
 ## get data
 
-#data <- read_xlsx("data_rccr_pm_1run.xlsx") ### ATENÇÃO MUDANÇAS DE NOME
+data <- read_xlsx("data_rccr_pm_1run.xlsx") ### ATENÇÃO MUDANÇAS DE NOME
 
 ## view data
 
-View(data)
-print(data)
+x500 <- head(dif, 10000)
+
+#View(data)
+#print(data)
 
 ## check data type
 
@@ -67,34 +93,122 @@ colnames(data)[colnames(data) == "N_Utente"] <- "case_id"
 colnames(data)[colnames(data) == "Datas"] <- "timestamp"
 colnames(data)[colnames(data) == "Dat atributo"] <- "activity_id"
 colnames(data)[colnames(data) == "ordem eventos"] <- "instance_id"
+colnames(data)[colnames(data) == "ACeS__"] <- "resource_id"
 
+## fill in lack of lifecycle - porque não há data inicio e data fim
+dif <- data %>%
+  mutate(status = "complete",
+         activity_instance = 1:nrow(.)) %>%
+  eventlog(
+    case_id = "case_id",
+    activity_id = "activity_id",
+    activity_instance_id = "activity_instance",
+    lifecycle_id = "status",
+    timestamp = "timestamp",
+    resource_id = "resource_id"
+  )
 
 ############################ CREATE EVENTLOG ##########################
 
 ## FULL EVENT LOG FUNCTION ##
-bupaR::eventlog(eventlog = data,
-                       case_id = "case_id",
-                       activity_id = "activity_id",
-                       timestamp = "timestamp"
+dif <-bupaR::eventlog(eventlog = dif,
+                      case_id = "case_id",
+                      activity_id = "activity_id",
+                      activity_instance_id = "activity_instance",
+                      lifecycle_id = "status",
+                      timestamp = "timestamp",
+                      resource_id = "resource_id"
                         )
 
 
-dif <- bupaR::simple_eventlog(eventlog = data,
-                case_id = "case_id",
-                activity_id = "activity_id",
-                timestamp = "timestamp"
-                )
+#dif <- bupaR::simple_eventlog(eventlog = data,
+#                case_id = "case_id",
+#                activity_id = "activity_id",
+#                timestamp = "timestamp"
+#                )
 
-### add butão bupaR::isimple_eventlog(eventlog = data)
+### add botão bupaR::isimple_eventlog(eventlog = data)
 
 ########## stats ############
 
+dif %>% 
+  summary
+
+dif %>% 
+  activity_frequency(level = "trace") %>%
+  plot
+
+# process map ####
+dif %>%
+  filter_activity_frequency(percentage = 1.0) %>% # show only most frequent activities
+  filter_trace_frequency(percentage = .85) %>%    # show only the most frequent traces
+  process_map(  type_nodes = frequency("absolute-case"),
+                type_edges = performance(median, "days"),
+                                       Render = F) 
+
+
 ###### Exploratory and descriptive ####
+
+dif
+
+eventlog
+
+mapping(dif)
+
+bupaR::activities(dif)
+bupaR::cases(dif)
+bupaR::traces
+bupaR::n_activities(dif)
+bupaR::n_activity_instances(dif)
+bupaR::n_cases(dif) ## actividades distintas
+bupaR::n_events(dif)
+
+### event data analysis
+
+edeaR::activity_frequency(dif)
+edeaR::processing_time(dif)
+edeaR::size_of_repetitions(dif)
+
+# dif %>% activity_frequency(level = "trace") %>% plot() exemplo plot
 
 
 ###### process visualization ######
 
-processmapR::process_map(dif) ### mapeamento
+processmapR::process_map(dif) ### mapeamento #########
+
+### process mapping de frequências
+dif %>% 
+  process_map(type= frequency("relative", color_scale= "PuBu"))
+
+## process maping com dias
+dif %>% 
+  process_map(performance(median, "days"))
+
+## process mapping combo
+dif %>%
+  process_map(type_nodes = frequency("absolute"),
+              type_edges = performance(median, "days"))
+
+#### animation
+
+animate_process(x500, mode = "relative", jitter = 10, legend = "color",
+                mapping = token_aes(color = token_scale("case_id", 
+                                            scale = "linear", 
+                          range = RColorBrewer::brewer.pal(7, "Spectral"))))
+
+###### conditional process analysis
+
+dif %>%
+  filter_activity_frequency(percentage = 1.0) %>% # show only most frequent activities
+  filter_trace_frequency(percentage = .80) %>%    # show only the most frequent traces
+  group_by("Centro colono") %>% 
+  throughput_time('log', units = 'days') %>%
+ 
+
+### >>>>>>>>>>
+  
+#### outros process mapping
+
 
 processmapR::precedence_matrix(dif) ## sequências 1
 
@@ -105,6 +219,16 @@ processmapR::dotted_chart(dif) ## takes time!
 processmapR::resource_map(dif) ### mapeamento 2
 
 ##### Process dashboard ######
+
+processmonitR::activity_dashboard(dif)
+
+processmonitR::rework_dashboard(dif)
+
+performance_dashboard(dif)
+
+## end time to process
+toc()
+
 
 processmonitR::activity_dashboard(dif)
 
