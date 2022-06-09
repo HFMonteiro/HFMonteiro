@@ -12,6 +12,7 @@
 ##install.packages("plyr")
 install.packages("DiagrammeR")
 install.packages("processanimateR")
+install.packages("daqapo")
 
 c_necessary_packages <- c(
   'bupaR',
@@ -54,6 +55,7 @@ library(ggplot2)
 library(stringr)
 library(lubridate)
 library(processanimateR)
+library(daqapo)
 
 ##devtools::install_github("gertjanssenswillen/<package>")
 ##devtools::install_github("gertjanssenswillen/processmapr") <- mais recente
