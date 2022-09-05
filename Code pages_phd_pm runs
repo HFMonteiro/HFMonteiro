@@ -1,0 +1,609 @@
+#### Set folder ####
+
+getwd()
+setwd("C:/Users/hugof/OneDrive - SPMS - Serviços Partilhados do Ministério da Saúde, EPE/DEP/Rastreios/RCCR/PM_mining/run_R_pm_phd")
+
+
+## relevant packages & others
+
+#install.packages("bupaR")
+#install.packages("eventdataR")
+#install.packages("xesreadR")
+#install.packages("edeaR")
+#install.packages("processmapR")
+#install.packages("processmonitR")
+#install.packages("processcheckR")
+#install.packages("tictoc")
+#install.packages("devtools")
+#install.packages("readxl")
+#install.packages("dplyr")
+#install.packages("tidyverse")
+#install.packages("plyr")
+#install.packages("DiagrammeR")
+#install.packages("processanimateR")
+#install.packages("rmarkdown")
+#install.packages("CollaborateR")
+#install.packages("skimr")
+#install.packages("janitor")
+#install.packages("reshape") #### verificar este CODIGO PARA RESHAPE
+#install.packages("anonymizer")
+#install.packages('rmarkdown')
+#install.packages("Hmisc")
+
+### VERSÃO MAIS RECENTE ANONYMIZER
+#if (packageVersion("devtools") < 1.6) {
+#  install.packages("devtools")
+#}
+#devtools::install_github("paulhendricks/anonymizer")
+
+
+########### relevant libraries ############
+
+############## START HERE ###############
+
+#### clean environment ####
+
+rm(list = ls())
+
+#### library ####
+
+library(rmarkdown)
+library(bupaR)
+#library(eventdataR)
+#library(xesreadR)
+#library(edeaR)
+#library(processmapR)
+#library(processmonitR)
+library(tictoc)
+library(devtools)
+library(readxl)
+library(dplyr)
+library(plyr)
+library(tidyverse)
+library(eventdataR)
+library(readr)
+library(DiagrammeR)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(processanimateR)
+library(processcheckR)
+library(skimr)
+library(janitor)
+library(anonymizer)
+
+## time to process
+tic()
+
+###$$$$$$ check if relevant...$$$$###
+
+#devtools::install_github("gertjanssenswillen/processmapr") ## <- mais recente
+#devtools::install_github("gertjanssenswillen/processcheckR")
+
+# use remotes to install the latest version of processanimateR
+#remotes::install_github("bupaverse/processanimateR")
+
+## load data ##
+
+d1 <- read.csv("full BD_28_07/CSV_RCCR_CIRC_KIT_CASA_DET.csv")
+
+d2 <- read.csv("full BD_28_07/CSV_RCCR_PROD_CC.csv")
+
+#### filtrar um só aces para modelar agora ####
+
+#d1<- d1 %>%
+#       filter(d1$ACES == "ULS Matosinhos" ) 
+
+#head(d1)
+
+####### REVIEW ANTES DE FECHAR
+
+d2[d2 == " - "] <- "Aguarda encaminhamento" #### substitui vazios por ref a utentes a aguardar encaminhamento
+
+### clearning ### 
+
+janitor::clean_names(d1)
+janitor::clean_names(d2)
+
+### merge d1 e d2 ###
+
+d3 <- merge(d1, d2, by = c("SNS_N_CARTAO_UTENTE", "SNS_N_CARTAO_UTENTE")) ### só os que match com d2 inner join
+
+d4 <- merge(d1, d2, by = "SNS_N_CARTAO_UTENTE", all= TRUE) ### outer join d1 + d2 outer join
+
+rm(d1, d2) ### remover bds iniciais
+
+###### change variable names
+
+colnames(d3)[colnames(d3) == "SNS_N_CARTAO_UTENTE"] <- "utente"
+
+colnames(d4)[colnames(d4) == "SNS_N_CARTAO_UTENTE"] <- "utente"
+
+#### anonimização
+
+set.seed(123)
+
+d3$utente <- anonymize(d3$utente, .algo = "crc32", .chars = letters[1:2],  .n_chars = 1L)
+
+d4$utente <- anonymize(d4$utente, .algo = "crc32", .chars = letters[1:2],  .n_chars = 1L)
+
+#### apagar elementos id ##### no names, birth date, names
+
+names(d4)
+
+d3 <- select(d3, -3, -4, -5, -6, -26, -27, -28,-30,-31,-32,-33, -34 ,-36, -41, -44, -45)
+
+d4 <- select(d4, -3, -4, -5, -6, -26, -27, -28,-30,-31,-32,-33, -34 ,-36, -41, -44, -45)
+
+
+#####################################################
+##### RENAME aces, centro de colonoscopia #####
+
+### rename aces d3 
+
+list(unique(d3$ACES.x))
+
+d3$ACES.x[d3$ACES.x == "Famalicão"]             <- "ACeS 1" ###rename especificamente
+d3$ACES.x[d3$ACES.x == "Alto Tâmega e Barroso"] <- "ACeS 2"
+d3$ACES.x[d3$ACES.x == "Alto Ave"]              <- "ACeS 3"
+d3$ACES.x[d3$ACES.x == "Espinho/Gaia"]          <- "ACeS 4"
+d3$ACES.x[d3$ACES.x == "ULS Alto Minho"]        <- "ACeS 5"
+d3$ACES.x[d3$ACES.x == "Póvoa de Varzim/Vila do Conde"] <- "ACeS 6"
+d3$ACES.x[d3$ACES.x == "Braga"]                 <- "ACeS 7"
+d3$ACES.x[d3$ACES.x == "Vale do Sousa Norte"]   <- "ACeS 8"
+d3$ACES.x[d3$ACES.x == "Vale do Sousa Sul"]     <- "ACeS 16"
+d3$ACES.x[d3$ACES.x == "Gondomar"]              <- "ACeS 9"
+d3$ACES.x[d3$ACES.x == "Barcelos/Esposende"]    <- "ACeS 10"
+d3$ACES.x[d3$ACES.x == "Douro Sul"]             <- "ACeS 12"
+d3$ACES.x[d3$ACES.x == "Porto Ocidental"]       <- "ACeS 13"
+d3$ACES.x[d3$ACES.x == "Porto Oriental"]        <- "ACeS 11"
+d3$ACES.x[d3$ACES.x == "Marão e Douro Norte"]   <- "ACeS 14" ###rename especificamente
+d3$ACES.x[d3$ACES.x == "Gaia"]                  <- "ACeS 15"
+d3$ACES.x[d3$ACES.x == "ULS Nordeste"]          <- "ACeS 17"
+d3$ACES.x[d3$ACES.x == "Baixo Tâmega"]          <- "ACeS 18"
+d3$ACES.x[d3$ACES.x == "ULS Matosinhos"]        <- "ACeS 19"
+d3$ACES.x[d3$ACES.x == "Gerês/Cabreira"]        <- "ACeS 20"
+d3$ACES.x[d3$ACES.x == "Feira/Arouca"]          <- "ACeS 21"
+d3$ACES.x[d3$ACES.x == "Aveiro Norte"]          <- "ACeS 22"
+d3$ACES.x[d3$ACES.x == "Santo Tirso/Trofa"]     <- "ACeS 23"
+d3$ACES.x[d3$ACES.x == "Maia/Valongo"]          <- "ACeS 24"
+
+### change aces d4
+
+list(unique(d4$ACES.x))
+
+d4$ACES.x[d4$ACES.x == "Famalicão"]             <- "ACeS 1" ###rename especificamente
+d4$ACES.x[d4$ACES.x == "Alto Tâmega e Barroso"] <- "ACeS 2"
+d4$ACES.x[d4$ACES.x == "Alto Ave"]              <- "ACeS 3"
+d4$ACES.x[d4$ACES.x == "Espinho/Gaia"]          <- "ACeS 4"
+d4$ACES.x[d4$ACES.x == "ULS Alto Minho"]        <- "ACeS 5"
+d4$ACES.x[d4$ACES.x == "Póvoa de Varzim/Vila do Conde"] <- "ACeS 6"
+d4$ACES.x[d4$ACES.x == "Braga"]                 <- "ACeS 7"
+d4$ACES.x[d4$ACES.x == "Vale do Sousa Norte"]   <- "ACeS 8"
+d4$ACES.x[d4$ACES.x == "Vale do Sousa Sul"]     <- "ACeS 16"
+d4$ACES.x[d4$ACES.x == "Gondomar"]              <- "ACeS 9"
+d4$ACES.x[d4$ACES.x == "Barcelos/Esposende"]    <- "ACeS 10"
+d4$ACES.x[d4$ACES.x == "Douro Sul"]             <- "ACeS 12"
+d4$ACES.x[d4$ACES.x == "Porto Ocidental"]       <- "ACeS 13"
+d4$ACES.x[d4$ACES.x == "Porto Oriental"]        <- "ACeS 11"
+d4$ACES.x[d4$ACES.x == "Marão e Douro Norte"]   <- "ACeS 14" ###rename especificamente
+d4$ACES.x[d4$ACES.x == "Gaia"]                  <- "ACeS 15"
+d4$ACES.x[d4$ACES.x == "ULS Nordeste"]          <- "ACeS 17"
+d4$ACES.x[d4$ACES.x == "Baixo Tâmega"]          <- "ACeS 18"
+d4$ACES.x[d4$ACES.x == "ULS Matosinhos"]        <- "ACeS 19"
+d4$ACES.x[d4$ACES.x == "Gerês/Cabreira"]        <- "ACeS 20"
+d4$ACES.x[d4$ACES.x == "Feira/Arouca"]          <- "ACeS 21"
+d4$ACES.x[d4$ACES.x == "Aveiro Norte"]          <- "ACeS 22"
+d4$ACES.x[d4$ACES.x == "Santo Tirso/Trofa"]     <- "ACeS 23"
+d4$ACES.x[d4$ACES.x == "Maia/Valongo"]          <- "ACeS 24"
+
+### rename centro colonoscopia d3 
+
+list(unique(d3$CENTRO_COLONOSCOPIA)) #### change to CCX
+
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "CHTMAD - Hosp. Vila Real"]                        <- "CC1" ###rename especificamente
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "C.H. do Alto Minho (ULS Alto Minho)"]             <- "CC2"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "IPO - Instituto Português de Oncologia - Porto"]  <- "CC3"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Centro Hospitalar do Tâmega e Sousa"]             <- "CC4"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "ULS Matosinhos (HPH)"]                            <- "CC5"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Centro Hospitalar do Médio Ave"]                  <- "CC6"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "C.H. Entre Douro e Vouga (Sta Maria Feira)"]      <- "CC7"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Hospital das Forças Armadas - Pólo Porto"]        <- "CC8"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Hospital da Senhora da Oliveira Guimarães"]       <- "CC9"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Centro Hospitalar de Vila Nova de Gaia/Espinho"]  <- "CC10"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "C.H. do Porto"]    <- "CC11"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "C.H. da Póvoa de Varzim/Vila do Conde"]           <- "CC12"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Hospital de Braga"]                               <- "CC13"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Centro Hospitalar de S. João"]                    <- "CC14"
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "Hospital de Braga - Famalicão"]                   <- "CC15" ###rename especificamente
+d3$CENTRO_COLONOSCOPIA[d3$CENTRO_COLONOSCOPIA == "ULS do Nordeste (Hospital de Mirandela)"]         <- "CC16"
+
+### change aces d4
+
+list(unique(d4$CENTRO_COLONOSCOPIA)) #### change to CCX
+
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "CHTMAD - Hosp. Vila Real"]                        <- "CC1" ###rename especificamente
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "C.H. do Alto Minho (ULS Alto Minho)"]             <- "CC2"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "IPO - Instituto Português de Oncologia - Porto"]  <- "CC3"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Centro Hospitalar do Tâmega e Sousa"]             <- "CC4"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "ULS Matosinhos (HPH)"]                            <- "CC5"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Centro Hospitalar do Médio Ave"]                  <- "CC6"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "C.H. Entre Douro e Vouga (Sta Maria Feira)"]      <- "CC7"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Hospital das Forças Armadas - Pólo Porto"]        <- "CC8"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Hospital da Senhora da Oliveira Guimarães"]       <- "CC9"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Centro Hospitalar de Vila Nova de Gaia/Espinho"]  <- "CC10"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "C.H. do Porto"]    <- "CC11"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "C.H. da Póvoa de Varzim/Vila do Conde"]           <- "CC12"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Hospital de Braga"]                               <- "CC13"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Centro Hospitalar de S. João"]                    <- "CC14"
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "Hospital de Braga - Famalicão"]                   <- "CC15" ###rename especificamente
+d4$CENTRO_COLONOSCOPIA[d4$CENTRO_COLONOSCOPIA == "ULS do Nordeste (Hospital de Mirandela)"]         <- "CC16"
+
+
+############## anonimização? ################
+#set.seed(123)
+
+#d3$ACES.x <- anonymize(d3$ACES.x, .algo = "crc32", .chars = letters[1:2],  .n_chars = 1L)
+
+#d4$ACES.x <- anonymize(d4$ACES.x, .algo = "crc32", .chars = letters[1:2],  .n_chars = 1L)
+
+########### create files in folder
+
+write.csv(d3,"C:/Users/hugof/OneDrive - SPMS - Serviços Partilhados do Ministério da Saúde, EPE/DEP/Rastreios/RCCR/PM_mining/run_R_pm_phd/Bases de dados/d3.csv",row.names = FALSE )
+
+write.csv(d4,"C:/Users/hugof/OneDrive - SPMS - Serviços Partilhados do Ministério da Saúde, EPE/DEP/Rastreios/RCCR/PM_mining/run_R_pm_phd/Bases de dados/d4.csv",row.names = FALSE )
+
+### fim de código
+toc()
+
+
+################## REVIEW dataflow ###############
+
+
+getwd()
+
+rm(list = ls())
+
+#### library ####
+#install.packages("tibbletime")
+
+library(rmarkdown)
+library(Hmisc)
+library(bupaR)
+#library(eventdataR)
+#library(xesreadR)
+#library(edeaR)
+#library(processmapR)
+#library(processmonitR)
+library(tictoc)
+library(devtools)
+library(readxl)
+library(dplyr)
+library(plyr)
+library(tidyverse)
+library(eventdataR)
+library(readr)
+library(DiagrammeR)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(processanimateR)
+library(processcheckR)
+library(skimr)
+library(janitor)
+library(anonymizer)
+library(tibbletime)
+
+##### READ FILES IN FOLDER
+
+d3 <- read.csv("Bases de dados/d3.csv")
+
+d4 <- read.csv("Bases de dados/d4.csv")
+
+############ eventlog D3  #########
+
+ls(d3)
+
+names(d3)
+
+str(d3)
+
+d3_r <- d3 ### working set
+
+head(d3_r, 10) ## view top d4 rows
+
+## convert to data frame
+
+as.data.frame(d3_r)
+
+### unpivot datas ou pivot long 
+
+d3_r <- pivot_longer(d3_r, cols = starts_with("DATA"), 
+                     names_to = c("data_atributo"),
+                     values_to = "Datas")
+
+### unpivot aces e colonoscopias ou pivot long
+
+d3_r <- pivot_longer(d3_r,cols = c("ACES.x", "CENTRO_COLONOSCOPIA","ESTADO","ENCAMINHAMENTO"),
+                     names_to = c("estrutura_"),
+                     values_to = "resource_id")
+
+##### sampling for smaller model play #########
+
+set.seed(123) ### keep sampling reproducible
+
+IDs <- sample(unique(d3_r$utente), 1000) ## random sample of X IDs
+
+d3_r<- d3_r[d3_r$utente %in% IDs, ] ## define nova tabela com X de IDs
+
+colnames(d3_r)[colnames(d3_r) == "utente"] <- "case_id"
+colnames(d3_r)[colnames(d3_r) == "Datas"] <- "timestamp"
+colnames(d3_r)[colnames(d3_r) == "data_atributo"] <- "activity_id"
+
+today <- Sys.Date()
+
+#### transformação das datas ######## checks type and transforms and merges
+
+a <- as.Date(d3_r$timestamp,format="%y/%b/%d") # Produces NA when format is not "%y/%b/%d"
+b <- as.Date(d3_r$timestamp,format="%d-%b-%y") # Produces NA when format is not "%d-%b-%y"
+a[is.na(a)] <- b[!is.na(b)] # Combine both while keeping their ranks
+d3_r$timestamp <- a # Put it back in your dataframe
+d3_r$timestamp
+
+rm(a,b,today) ### CLEAN 
+
+summary(d3_r$timestamp) ## CHECK
+
+#### filtrar para tudo depois de 14 de março de 2018 - exclusão do piloto
+
+d3_r <- d3_r %>%
+            filter(d3_r$timestamp > as.Date("2018-03-14"))
+
+summary(d3_r$timestamp) ## CHECK
+
+as.data.frame(d3_r)
+
+## describe(d5) ## stats por variável
+
+############ AQUI ALTERAR VER PÁGINA https://r-lang.com/r-date-format/
+
+## fill in lack of lifecycle - porque não há data inicio e data fim 
+dif3_r <- d3_r %>%
+  mutate(status = "complete",
+         activity_instance = 1:nrow(.)) %>%
+  eventlog(
+    case_id = "case_id",
+    activity_id = "activity_id",
+    activity_instance_id = "activity_instance",
+    lifecycle_id = "status",
+    timestamp = "timestamp",
+    resource_id = "resource_id"
+  )
+
+#### salvar event log #####
+
+save(dif3_r, file = "eventlog3.Rda")
+
+################### end of eventlog creation d3 #################
+
+#### D4 EVENT LOG COM SAMPLE ####
+
+#### construir simple d4 e d4_all com todos os resource! ######
+
+#### Limpeza D4 ##### SIMPLE FULL JOIN ###
+
+ls(d4)
+
+str(d4)
+
+names(d4)
+
+d4_r <- d4
+
+## <- select(d4, -3,-4,-5,-6,-7,-8,-11,-13,-14,-15,-16,-17,-19,-26,-27,-28,-30,-31,-32,-33,-34,-35,-36,-41,-44, -45) 
+
+### d4_romit <- na.omit(d4_r)  ### igual a d3
+# d4_romit
+
+### view top lines and set seed ###
+
+set.seed(123) ### keep sampling reproducible
+
+head(d4_r, 10) ## view top d4 rows
+
+IDs <- sample(unique(d4_r$SNS_N_CARTAO_UTENTE), 10000) ## random sample of X IDs
+
+########## sampling conditional ###########
+
+########### A REVER ###############
+
+###IDs <- sample(unique(d4_r$SNS_N_CARTAO_UTENTE) && d4_r$ENCAMINHAMENTO <> NA, 5000) ## random sample of X IDs
+
+#################################################################
+
+d5<- d4_r[d4_r$SNS_N_CARTAO_UTENTE %in% IDs, ] ## define nova tabela com X de IDs
+
+############## PARA D4 ############
+## check data type
+
+str(d5)
+
+## convert to data frame
+
+as.data.frame(d5)
+
+summary(d5)
+
+#### REVIEW APÓS CUTS DO D4!!!!! ####
+
+### unpivot datas ou pivot long 
+
+d5 <- pivot_longer(d5, cols = starts_with("DATA"), 
+                   names_to = c("data_atributo"),
+                   values_to = "Datas")
+
+
+### unpivot aces e colonoscopias ou pivot long
+
+d5 <- pivot_longer(d5,cols = c("ACES.x", "CENTRO_COLONOSCOPIA","ESTADO","ENCAMINHAMENTO"),
+                   names_to = c("estrutura_"),
+                   values_to = "resource_id")
+
+
+colnames(d5)[colnames(d5) == "SNS_N_CARTAO_UTENTE"] <- "case_id"
+colnames(d5)[colnames(d5) == "Datas"] <- "timestamp"
+colnames(d5)[colnames(d5) == "data_atributo"] <- "activity_id"
+
+today <- Sys.Date()
+
+#### transformação das datas ######## checks type and transforms and merges
+
+a <- as.Date(d5$timestamp,format="%y/%b/%d") # Produces NA when format is not "%y/%b/%d"
+b <- as.Date(d5$timestamp,format="%d-%b-%y") # Produces NA when format is not "%d-%b-%y"
+a[is.na(a)] <- b[!is.na(b)] # Combine both while keeping their ranks
+d5$timestamp <- a # Put it back in your dataframe
+d5$timestamp
+
+rm(a,b,today) ### CLEAN 
+
+summary(d5$timestamp) ## CHECK
+
+#### filtrar para tudo depois de 14 de março de 2018 - exclusão do piloto
+
+d5 %>%
+  filter(d5$timestamp > as.Date("2018-03-14"))
+
+summary(d5$timestamp) ## CHECK
+
+## describe(d5) ## stats por variável
+
+############ AQUI ALTERAR VER PÁGINA https://r-lang.com/r-date-format/
+
+
+## fill in lack of lifecycle - porque não há data inicio e data fim 
+dif4_r <- d5 %>%
+  mutate(status = "complete",
+         activity_instance = 1:nrow(.)) %>%
+  eventlog(
+    case_id = "case_id",
+    activity_id = "activity_id",
+    activity_instance_id = "activity_instance",
+    lifecycle_id = "status",
+    timestamp = "timestamp",
+    resource_id = "resource_id"
+  )
+
+as.data.frame(dif4_r)
+
+#### salvar event log #####
+
+save(dif4_r, file = "eventlog.Rda")
+
+### save eventlog end
+
+
+
+getwd()
+
+setwd("C:/Users/hugof/OneDrive - SPMS - Serviços Partilhados do Ministério da Saúde, EPE/DEP/Rastreios/RCCR/PM_mining/run_R_pm_phd")
+
+rm(list = ls())
+
+#### library ####
+
+#remotes::install_github("bupaverse/pm4py@dev") ### install pm4py python process mining
+pm4py::install_pm4py() 
+
+library(rmarkdown)
+library(Hmisc)
+library(bupaR)
+#library(eventdataR)
+#library(xesreadR)
+#library(edeaR)
+#library(processmapR)
+#library(processmonitR)
+library(tictoc)
+library(devtools)
+library(readxl)
+library(dplyr)
+library(plyr)
+library(tidyverse)
+library(eventdataR)
+library(readr)
+library(DiagrammeR)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+library(processanimateR)
+library(processcheckR)
+library(skimr)
+library(janitor)
+library(anonymizer)
+library(pm4py)
+
+## time to process
+tic()
+
+######################## D3 ###########
+
+load(file = "eventlog3.Rda") ######## LOADS FILE as defined above!!!
+
+########### load eventlog end #
+
+summary(dif3_r$timestamp)
+
+class(dif3_r)
+
+mapping(dif3_r)
+
+################ start analytics ####################
+
+
+
+
+
+
+
+
+
+############## trace analytics ###################
+
+dif3_r %>% 
+  activity_frequency(level = "case") %>%  ## pode ser trace, log ou case ## plot de nr de casos por freq de atividades
+  plot
+
+dif3_r %>%
+  precedence_matrix(type = "absolute") %>%
+  plot
+
+
+########### DISCOVERY MAPS ########
+
+dif3_r %>%   ####  REVIEW D4 HERE  #####
+## filter_resource(c("ACeS 2")) %>%  ##### ESPECIFICA RESOURCE A FILTRAR
+filter_resource_frequency(percentage = 1) %>% # show only most frequent resources
+  filter_trace_frequency(percentage = .9) %>%    # show only the most frequent traces
+  resource_map(  type_nodes = frequency("absolute-case"),
+                 # type_edges = performance(median, "days"),
+                 Render = F)
+
+
+dif3_r %>%   ####  REVIEW D4 HERE  #####
+### filter_resource(c("ACEX")) %>%  ##### ESPECIFICA RESOURCE A FILTRAR, atenção que fixa a esse ponto! REVER
+filter_resource_frequency(percentage = 0.3) %>% # show only most frequent resources
+  filter_trace_frequency(percentage = .5) %>%    # show only the most frequent traces
+  process_map(  type_nodes = frequency("absolute-case"),
+                type_edges = performance(median, "days"),
+                Render = F)
+
+dif3_r %>%
+  process_map(performance(median, "days"))
+
+
+# filter_time_period(interval = ymd(c(20191201, 20131231)), filter_method = "trim") %>%  #### permite cortar o eventlog para o que for preciso 
+
+##########################################
+############## end of d3 #####################
+###############################
+
+toc()
